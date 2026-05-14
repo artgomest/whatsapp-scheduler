@@ -162,6 +162,11 @@ function App() {
               <><Clock size={18} /> {status.qr ? 'Aguardando QR Code' : 'Desconectado'}</>
             )}
           </div>
+          {!status.firebase_connected && (
+            <div style={{ background: '#ef4444', color: 'white', padding: '0.5rem 1rem', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <AlertCircle size={14} /> FIREBASE FORA
+            </div>
+          )}
         </div>
       </header>
 
