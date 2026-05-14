@@ -13,8 +13,14 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// Servir arquivos estáticos do Frontend (após o build)
-app.use(express.static(path.join(__dirname, 'frontend/dist')));
+// Servir arquivos estáticos do Frontend
+const distPath = path.join(__dirname, 'frontend', 'dist');
+if (fs.existsSync(distPath)) {
+    console.log('✅ Pasta dist encontrada em:', distPath);
+    app.use(express.static(distPath));
+} else {
+    console.warn('⚠️ ATENÇÃO: Pasta dist NÃO encontrada em:', distPath);
+}
 
 // Configuração do Multer para uploads
 const storage = multer.diskStorage({
@@ -82,7 +88,7 @@ app.delete('/api/schedule/:id', async (req, res) => {
 
 // Rota para qualquer outra coisa devolver o index.html (SPA support)
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'frontend/dist', 'index.html'));
+    res.sendFile(path.join(distPath, 'index.html'));
 });
 
 // Inicializar Servidor e WhatsApp
