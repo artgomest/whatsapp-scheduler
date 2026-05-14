@@ -15,7 +15,8 @@ try {
 
     if (!admin.apps.length && serviceAccount) {
         admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount)
+            credential: admin.credential.cert(serviceAccount),
+            storageBucket: `${serviceAccount.project_id}.appspot.com`
         });
         admin.firestore().settings({ ignoreUndefinedProperties: true }); // Proteção contra undefined
         console.log('✅ Firebase inicializado com sucesso!');
@@ -30,5 +31,8 @@ module.exports = {
     admin, 
     get db() { 
         return admin.apps.length ? admin.firestore() : null; 
-    } 
+    },
+    get bucket() {
+        return admin.apps.length ? admin.storage().bucket() : null;
+    }
 };

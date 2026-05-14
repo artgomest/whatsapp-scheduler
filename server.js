@@ -34,17 +34,27 @@ if (fs.existsSync(distPath)) {
     console.warn('⚠️ ATENÇÃO: Pasta dist NÃO encontrada em:', distPath);
 }
 
-// Configuração do Multer para uploads
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const uploadDir = 'uploads';
-        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + '-' + file.originalname);
-    }
-});
+const firebase = require('./firebase');
+
+// Função para fazer upload para o Firebase Storage
+async function uploadToFirebase(file) {
+    const bucket = firebase.bucket;
+    if (!bucket) throw new Error('Firebase Storage não disponível');
+
+    const fileName = `uploads/${Date.now()}-${file.originalname}`;
+    const fileUpload = bucket.file(fileName);
+
+    await fileUpload.save(file.buffer, {
+        metadata: { contentType: file.mimetype }
+    });
+
+    // Torna o arquivo público e pega o link
+    await fileUpload.makePublic();
+    return `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+}
+
+// Configuração do Multer (agora usando memória para subir direto pro Firebase)
+const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 // API: Obter Status do WhatsApp
@@ -90,23 +100,28 @@ app.get('/api/groups', async (req, res) => {
 
 // API: Agendar Mensagem
 app.post('/api/schedule', upload.any(), async (req, res) => {
-    const { group_jid, message, scheduled_time, media_type } = req.body;
+    const { group_jid, message, scheduled_time, media_type, media_url, file_url } = req.body;
     
-    let file_path = null;
-    if (req.files && req.files.length > 0) {
-        file_path = req.files[0].path;
-    }
-
-    console.log(`[API] Recebido agendamento para: ${group_jid}, Mídia: ${media_type}`);
-
+    let final_url = media_url || file_url || null; // Prioriza o link se já existir
+    
     try {
+        // Se não veio link, mas veio arquivo, faz o upload pro Storage
+        if (!final_url && req.files && req.files.length > 0) {
+            console.log(`[API] Fazendo upload do arquivo para o Firebase Storage...`);
+            final_url = await uploadToFirebase(req.files[0]);
+            console.log(`✅ [API] Upload concluído: ${final_url}`);
+        }
+
+        console.log(`[API] Recebido agendamento para: ${group_jid}, Mídia: ${media_type || 'link'}`);
+
         await db.run(
             "INSERT INTO schedules (group_jid, message, file_path, file_type, scheduled_time) VALUES (?, ?, ?, ?, ?)",
-            [group_jid, message, file_path, media_type, scheduled_time]
+            [group_jid, message, final_url, media_type, scheduled_time]
         );
-        res.json({ success: true });
+        res.json({ success: true, url: final_url });
     } catch (error) {
-        res.status(500).json({ error: 'Erro ao salvar agendamento' });
+        console.error('❌ Erro no agendamento:', error.message);
+        res.status(500).json({ error: 'Erro ao processar agendamento', details: error.message });
     }
 });
 
