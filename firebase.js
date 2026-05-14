@@ -10,14 +10,17 @@ try {
         serviceAccount = require('./firebase-service-account.json');
     }
 
-    if (!admin.apps.length) {
+    if (!admin.apps.length && serviceAccount) {
         admin.initializeApp({
             credential: admin.credential.cert(serviceAccount)
         });
+        console.log('✅ Firebase inicializado com sucesso!');
+    } else if (!serviceAccount) {
+        throw new Error('Chave do Firebase não encontrada. Configure a variável FIREBASE_SERVICE_ACCOUNT no Render.');
     }
 } catch (error) {
-    console.error('❌ Erro ao inicializar Firebase:', error.message);
+    console.error('❌ ERRO CRÍTICO FIREBASE:', error.message);
 }
 
-const db = admin.firestore();
+const db = admin.apps.length ? admin.firestore() : null;
 module.exports = { admin, db };
