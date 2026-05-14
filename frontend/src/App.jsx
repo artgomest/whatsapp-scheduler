@@ -125,6 +125,18 @@ function App() {
     }
   };
 
+  const handleReconnect = async () => {
+    setLoading(true);
+    try {
+      await axios.post(`${API_BASE}/api/reconnect`);
+      setTimeout(fetchStatus, 2000);
+    } catch (e) {
+      alert('Erro ao solicitar reconexão');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="glass-panel animate-fade">
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem', flexWrap: 'wrap', gap: '1rem' }}>
@@ -132,12 +144,24 @@ function App() {
           <MessageSquare size={36} color="#25D366" /> 
           Agendador WA
         </h1>
-        <div className={`status-badge ${status.status === 'connected' ? 'connected' : ''}`}>
-          {status.status === 'connected' ? (
-            <><CheckCircle size={18} /> Conectado</>
-          ) : (
-            <><Clock size={18} /> {status.qr ? 'Aguardando QR Code' : 'Desconectado'}</>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          {status.status !== 'connected' && (
+            <button 
+              onClick={handleReconnect} 
+              disabled={loading}
+              style={{ background: 'rgba(37, 211, 102, 0.1)', border: '1px solid #25D366', color: '#25D366', padding: '0.5rem 1rem', borderRadius: '12px', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> 
+              Gerar Novo QR
+            </button>
           )}
+          <div className={`status-badge ${status.status === 'connected' ? 'connected' : ''}`}>
+            {status.status === 'connected' ? (
+              <><CheckCircle size={18} /> Conectado</>
+            ) : (
+              <><Clock size={18} /> {status.qr ? 'Aguardando QR Code' : 'Desconectado'}</>
+            )}
+          </div>
         </div>
       </header>
 

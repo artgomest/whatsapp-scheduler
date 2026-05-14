@@ -44,6 +44,16 @@ app.get('/api/status', (req, res) => {
     res.json(getStatus());
 });
 
+// API: Forçar Reconexão / Novo QR Code
+app.post('/api/reconnect', async (req, res) => {
+    try {
+        await connectToWhatsApp();
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao reiniciar conexão' });
+    }
+});
+
 // API: Listar Grupos
 app.get('/api/groups', async (req, res) => {
     try {
