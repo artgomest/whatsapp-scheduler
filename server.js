@@ -89,14 +89,15 @@ app.get('/api/groups', async (req, res) => {
 });
 
 // API: Agendar Mensagem
-app.post('/api/schedule', upload.fields([{ name: 'media' }, { name: 'file' }]), async (req, res) => {
+app.post('/api/schedule', upload.any(), async (req, res) => {
     const { group_jid, message, scheduled_time, media_type } = req.body;
     
     let file_path = null;
-    if (req.files) {
-        if (req.files['media']) file_path = req.files['media'][0].path;
-        else if (req.files['file']) file_path = req.files['file'][0].path;
+    if (req.files && req.files.length > 0) {
+        file_path = req.files[0].path;
     }
+
+    console.log(`[API] Recebido agendamento para: ${group_jid}, Mídia: ${media_type}`);
 
     try {
         await db.run(
