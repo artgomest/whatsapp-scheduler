@@ -57,7 +57,13 @@ function App() {
   const fetchGroups = async () => {
     try {
       const res = await axios.get(`${API_BASE}/api/groups`);
-      if (Array.isArray(res.data)) setGroups(res.data);
+      if (Array.isArray(res.data)) {
+        setGroups(res.data);
+        if (res.data.length === 0 && status.status === 'connected') {
+           // Se estiver conectado mas vazio, tenta de novo em 3 segundos (sincronização do WA)
+           setTimeout(fetchGroups, 3000);
+        }
+      }
     } catch (e) {
       console.error('Failed to fetch groups');
     }
@@ -141,7 +147,16 @@ function App() {
           </h2>
           <form onSubmit={handleSubmit}>
             <div className="form-group">
-              <label>Escolha o Grupo</label>
+              <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                Escolha o Grupo
+                <button 
+                  type="button" 
+                  onClick={fetchGroups} 
+                  style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.75rem' }}
+                >
+                  <RefreshCw size={12} /> Atualizar
+                </button>
+              </label>
               <select 
                 required
                 value={formData.group_jid} 
