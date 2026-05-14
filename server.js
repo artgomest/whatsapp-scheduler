@@ -41,7 +41,12 @@ const upload = multer({ storage });
 
 // API: Obter Status do WhatsApp
 app.get('/api/status', (req, res) => {
-    res.json(getStatus());
+    const waStatus = getStatus();
+    const { db } = require('./firebase');
+    res.json({ 
+        ...waStatus, 
+        firebase_connected: !!db 
+    });
 });
 
 // API: Forçar Reconexão / Novo QR Code
@@ -91,7 +96,8 @@ app.get('/api/schedules', async (req, res) => {
         const rows = await db.all("SELECT * FROM schedules ORDER BY scheduled_time DESC");
         res.json(rows);
     } catch (error) {
-        res.status(500).json({ error: 'Erro ao buscar agendamentos' });
+        console.error('Erro ao buscar agendamentos:', error);
+        res.status(500).json({ error: 'Erro ao buscar agendamentos', details: error.message });
     }
 });
 
