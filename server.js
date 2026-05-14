@@ -4,7 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const cron = require('node-cron');
-const { connectToWhatsApp, getGroups, sendMessage, getSocket } = require('./whatsapp');
+const { connectToWhatsApp, getGroups, sendMessage, getStatus } = require('./whatsapp');
 const db = require('./db');
 
 const app = express();
@@ -29,13 +29,9 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// API: Obter QR Code e Status
+// API: Obter Status do WhatsApp
 app.get('/api/status', (req, res) => {
-    const sock = getSocket();
-    res.json({
-        connected: sock?.user ? true : false,
-        qr: global.lastQR || null
-    });
+    res.json(getStatus());
 });
 
 // API: Listar Grupos
@@ -49,15 +45,14 @@ app.get('/api/groups', async (req, res) => {
 });
 
 // API: Agendar Mensagem
-app.post('/api/schedule', upload.single('file'), async (req, res) => {
-    const { group_jid, message, scheduled_time } = req.body;
+app.post('/api/schedule', upload.single('media'), async (req, res) => {
+    const { group_jid, message, scheduled_time, media_type } = req.body;
     const file_path = req.file ? req.file.path : null;
-    const file_type = req.file ? (req.file.mimetype.startsWith('video/') ? 'video' : 'image') : 'text';
 
     try {
         await db.run(
             "INSERT INTO schedules (group_jid, message, file_path, file_type, scheduled_time) VALUES (?, ?, ?, ?, ?)",
-            [group_jid, message, file_path, file_type, scheduled_time]
+            [group_jid, message, file_path, media_type, scheduled_time]
         );
         res.json({ success: true });
     } catch (error) {
@@ -72,6 +67,16 @@ app.get('/api/schedules', async (req, res) => {
         res.json(rows);
     } catch (error) {
         res.status(500).json({ error: 'Erro ao buscar agendamentos' });
+    }
+});
+
+// Rota para deletar agendamento
+app.delete('/api/schedule/:id', async (req, res) => {
+    try {
+        await db.run("DELETE FROM schedules WHERE id = ?", [req.params.id]);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao deletar' });
     }
 });
 
@@ -91,7 +96,7 @@ async function startApp() {
 
     // Scheduler Worker (every minute)
     cron.schedule('* * * * *', async () => {
-        console.log('Running scheduler check...');
+        console.log('Checking for scheduled messages...');
         
         const now = new Date();
         const localISO = new Date(now.getTime() - (now.getTimezoneOffset() * 60000))
@@ -105,12 +110,12 @@ async function startApp() {
 
         for (const task of pending) {
             try {
-                console.log(`Enviando mensagem agendada para ${task.group_jid}`);
+                console.log(`Sending scheduled message to ${task.group_jid}`);
                 await sendMessage(task.group_jid, task.message, task.file_path, task.file_type);
                 await db.run("UPDATE schedules SET status = 'sent' WHERE id = ?", [task.id]);
             } catch (error) {
-                console.error(`Falha ao enviar para ${task.group_jid}:`, error);
-                await db.run("UPDATE schedules SET status = 'failed' WHERE id = ?", [task.id]);
+                console.error(`Failed to send to ${task.group_jid}:`, error);
+                await db.run("UPDATE schedules SET status = 'failed', error_message = ? WHERE id = ?", [error.message, task.id]);
             }
         }
     });

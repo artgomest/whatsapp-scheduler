@@ -2,13 +2,15 @@ const sqlite3 = require('sqlite3');
 const { open } = require('sqlite');
 const path = require('path');
 
-async function initDb() {
-    const db = await open({
+let dbConnection;
+
+async function init() {
+    dbConnection = await open({
         filename: path.join(__dirname, 'database.sqlite'),
         driver: sqlite3.Database
     });
 
-    await db.exec(`
+    await dbConnection.exec(`
         CREATE TABLE IF NOT EXISTS groups (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             jid TEXT UNIQUE,
@@ -19,15 +21,23 @@ async function initDb() {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             group_jid TEXT,
             message TEXT,
-            media_path TEXT,
-            media_type TEXT, -- 'image', 'video', 'text'
+            file_path TEXT,
+            file_type TEXT, -- 'image', 'video', 'text'
             scheduled_time DATETIME,
             status TEXT DEFAULT 'pending', -- 'pending', 'sent', 'failed'
             error_message TEXT
         );
     `);
 
-    return db;
+    return dbConnection;
 }
 
-module.exports = { initDb };
+async function run(sql, params) {
+    return dbConnection.run(sql, params);
+}
+
+async function all(sql, params) {
+    return dbConnection.all(sql, params);
+}
+
+module.exports = { init, run, all };
