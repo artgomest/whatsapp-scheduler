@@ -12,16 +12,23 @@ async function run(query, params = []) {
     
     if (q.includes('INSERT INTO SCHEDULES')) {
         const [group_jid, message, file_path, file_type, scheduled_time] = params;
-        const docRef = await db.collection('schedules').add({
-            group_jid,
-            message,
-            file_path,
-            file_type,
-            scheduled_time,
-            status: 'pending',
-            created_at: new Date().toISOString()
-        });
-        return { lastID: docRef.id };
+        console.log(`[DB] Tentando salvar agendamento para: ${group_jid}`);
+        try {
+            const docRef = await db.collection('schedules').add({
+                group_jid,
+                message,
+                file_path,
+                file_type,
+                scheduled_time,
+                status: 'pending',
+                created_at: new Date().toISOString()
+            });
+            console.log(`✅ [DB] Agendamento salvo no Firebase! ID: ${docRef.id}`);
+            return { lastID: docRef.id };
+        } catch (e) {
+            console.error('❌ [DB] Erro ao salvar agendamento no Firestore:', e.message);
+            throw e;
+        }
     }
     
     if (q.includes('UPDATE SCHEDULES SET STATUS')) {

@@ -125,11 +125,12 @@ function App() {
     }
   };
 
-  const handleReconnect = async () => {
+  const handleReconnect = async (isFull = false) => {
     setLoading(true);
     try {
-      await axios.post(`${API_BASE}/api/reconnect`);
-      setTimeout(fetchStatus, 2000);
+      await axios.post(`${API_BASE}/api/reconnect`, { full: isFull });
+      alert(isFull ? 'Sessão limpa! Aguarde o novo QR Code.' : 'Reiniciando conexão...');
+      setTimeout(fetchStatus, 3000);
     } catch (e) {
       alert('Erro ao solicitar reconexão');
     } finally {
@@ -146,14 +147,26 @@ function App() {
         </h1>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
           {status.status !== 'connected' && (
-            <button 
-              onClick={handleReconnect} 
-              disabled={loading}
-              style={{ background: 'rgba(37, 211, 102, 0.1)', border: '1px solid #25D366', color: '#25D366', padding: '0.5rem 1rem', borderRadius: '12px', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-            >
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> 
-              Gerar Novo QR
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button 
+                onClick={() => handleReconnect(false)} 
+                disabled={loading}
+                className="btn-secondary"
+                style={{ padding: '0.5rem 1rem', borderRadius: '12px', fontSize: '0.8rem' }}
+              >
+                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> 
+                Reiniciar
+              </button>
+              <button 
+                onClick={() => handleReconnect(true)} 
+                disabled={loading}
+                className="btn-danger"
+                style={{ padding: '0.5rem 1rem', borderRadius: '12px', fontSize: '0.8rem', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid #ef4444' }}
+              >
+                <Trash2 size={14} /> 
+                Reset Total
+              </button>
+            </div>
           )}
           <div className={`status-badge ${status.status === 'connected' ? 'connected' : ''}`}>
             {status.status === 'connected' ? (

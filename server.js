@@ -10,8 +10,16 @@ const db = require('./db');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+app.use(cors({ origin: '*', methods: '*' })); // Liberação total
 app.use(express.json());
+
+// Log de Raio-X em todas as requisições
+app.use((req, res, next) => {
+    if (req.path.startsWith('/api')) {
+        console.log(`[API] ${req.method} ${req.path} - ${new Date().toISOString()}`);
+    }
+    next();
+});
 
 // Servir arquivos estáticos do Frontend
 const distPath = path.resolve(__dirname, 'frontend', 'dist');
@@ -52,9 +60,20 @@ app.get('/api/status', (req, res) => {
 // API: Forçar Reconexão / Novo QR Code
 app.post('/api/reconnect', async (req, res) => {
     try {
+        const { full } = req.body;
+        if (full) {
+            console.log('🧨 Realizando RESET TOTAL da sessão...');
+            const { db: firestore } = require('./firebase');
+            const snapshot = await firestore.collection('whatsapp_auth').get();
+            const batch = firestore.batch();
+            snapshot.docs.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+            console.log('✅ Sessão apagada do Firebase.');
+        }
         await connectToWhatsApp();
         res.json({ success: true });
     } catch (error) {
+        console.error('Erro ao reconectar:', error);
         res.status(500).json({ error: 'Erro ao reiniciar conexão' });
     }
 });
