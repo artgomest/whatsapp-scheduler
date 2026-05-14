@@ -34,12 +34,20 @@ async function connectToWhatsApp() {
         }
 
         if (connection === 'close') {
-            const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
+            const statusCode = lastDisconnect.error?.output?.statusCode;
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+            
+            // Se o erro for conflito ou falha de autenticação, limpamos o QR e avisamos
+            if (statusCode === 411 || statusCode === 401) {
+                console.log('❌ Erro de Conflito ou Autenticação. Resetando sessão...');
+                qr = null;
+                status = 'disconnected';
+            }
+
             status = 'disconnected';
-            qr = null;
             if (shouldReconnect) {
                 console.log('Conexão fechada, tentando reconectar...');
-                connectToWhatsApp();
+                setTimeout(connectToWhatsApp, 3000); // Espera 3s para evitar loops
             }
         } else if (connection === 'open') {
             console.log('✅ WhatsApp Conectado com Sucesso via Firebase!');
