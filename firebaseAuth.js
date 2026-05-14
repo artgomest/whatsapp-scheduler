@@ -1,18 +1,35 @@
 const { db } = require('./firebase');
-const { proto, BufferJSON, initAuthCreds } = require('@whiskeysockets/baileys');
+const { proto, initAuthCreds } = require('@whiskeysockets/baileys');
 
 const COLLECTION = 'whatsapp_auth';
 
-// Função para limpar objetos para o Firestore (remove undefined e converte buffers)
+// Ferramenta própria para converter dados do WhatsApp (substitui o BufferJSON)
+const waReplacer = (key, value) => {
+    if (value && value.type === 'Buffer') {
+        return { type: 'Buffer', data: Buffer.from(value.data).toString('base64') };
+    }
+    if (value instanceof Uint8Array || Buffer.isBuffer(value)) {
+        return { type: 'Buffer', data: Buffer.from(value).toString('base64') };
+    }
+    return value;
+};
+
+const waReviver = (key, value) => {
+    if (value && value.type === 'Buffer' && typeof value.data === 'string') {
+        return Buffer.from(value.data, 'base64');
+    }
+    return value;
+};
+
 const cleanForFirestore = (obj) => {
-    return JSON.parse(JSON.stringify(obj, BufferJSON.replacer));
+    return JSON.parse(JSON.stringify(obj, waReplacer));
 };
 
 const useFirebaseAuthState = async (sessionId) => {
     const writeData = async (data, id) => {
         try {
             if (!db) return;
-            const safeId = id.replace(/\//g, '_'); // Remove barras
+            const safeId = id.replace(/\//g, '_');
             const cleanData = cleanForFirestore(data);
             await db.collection(COLLECTION).doc(`${sessionId}_${safeId}`).set(cleanData);
         } catch (e) {
@@ -23,10 +40,10 @@ const useFirebaseAuthState = async (sessionId) => {
     const readData = async (id) => {
         try {
             if (!db) return null;
-            const safeId = id.replace(/\//g, '_'); // Remove barras
+            const safeId = id.replace(/\//g, '_');
             const doc = await db.collection(COLLECTION).doc(`${sessionId}_${safeId}`).get();
             if (doc.exists) {
-                return JSON.parse(JSON.stringify(doc.data()), BufferJSON.reviver);
+                return JSON.parse(JSON.stringify(doc.data()), waReviver);
             }
         } catch (e) {
             console.error(`❌ Erro ao ler ${id} do Firebase:`, e.message);
@@ -37,7 +54,7 @@ const useFirebaseAuthState = async (sessionId) => {
     const removeData = async (id) => {
         try {
             if (!db) return;
-            const safeId = id.replace(/\//g, '_'); // Remove barras
+            const safeId = id.replace(/\//g, '_');
             await db.collection(COLLECTION).doc(`${sessionId}_${safeId}`).delete();
         } catch (e) {
             console.error(`❌ Erro ao remover ${id} do Firebase:`, e.message);
