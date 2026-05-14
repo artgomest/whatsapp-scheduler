@@ -15,11 +15,11 @@ async function run(query, params = []) {
         console.log(`[DB] Tentando salvar agendamento para: ${group_jid}`);
         try {
             const docRef = await db.collection('schedules').add({
-                group_jid,
-                message,
-                file_path,
-                file_type,
-                scheduled_time,
+                group_jid: group_jid || '',
+                message: message || '',
+                file_path: file_path || null,
+                file_type: file_type || 'text', // Fallback
+                scheduled_time: scheduled_time || '',
                 status: 'pending',
                 created_at: new Date().toISOString()
             });

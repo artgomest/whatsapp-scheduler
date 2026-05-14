@@ -17,6 +17,7 @@ try {
         admin.initializeApp({
             credential: admin.credential.cert(serviceAccount)
         });
+        admin.firestore().settings({ ignoreUndefinedProperties: true }); // Proteção contra undefined
         console.log('✅ Firebase inicializado com sucesso!');
     } else if (!serviceAccount) {
         throw new Error('Chave do Firebase não encontrada. Configure a variável FIREBASE_SERVICE_ACCOUNT no Render.');
