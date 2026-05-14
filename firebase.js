@@ -3,10 +3,13 @@ const admin = require('firebase-admin');
 let serviceAccount;
 
 try {
-    // Tenta carregar do ambiente (Render) ou de um arquivo local
+    // Diagnóstico
+    console.log('🔍 Verificando variáveis de ambiente...');
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        console.log('✅ Variável FIREBASE_SERVICE_ACCOUNT encontrada! Tamanho:', process.env.FIREBASE_SERVICE_ACCOUNT.length);
         serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
     } else {
+        console.warn('⚠️ Variável FIREBASE_SERVICE_ACCOUNT não encontrada no process.env');
         serviceAccount = require('./firebase-service-account.json');
     }
 
@@ -22,5 +25,9 @@ try {
     console.error('❌ ERRO CRÍTICO FIREBASE:', error.message);
 }
 
-const db = admin.apps.length ? admin.firestore() : null;
-module.exports = { admin, db };
+module.exports = { 
+    admin, 
+    get db() { 
+        return admin.apps.length ? admin.firestore() : null; 
+    } 
+};
