@@ -300,10 +300,10 @@ function App() {
                       {item.media_type === 'text' && <MessageSquare size={12} />}
                       {item.media_type === 'image' && <ImageIcon size={12} />}
                       {item.media_type === 'video' && <Video size={12} />}
-                      {item.media_type.toUpperCase()}
+                      {item.media_type?.toUpperCase()}
                     </span>
                     <span className={`tag ${item.status}`} style={{ fontWeight: '600' }}>
-                      {item.status.toUpperCase()}
+                      {item.status?.toUpperCase()}
                     </span>
                   </div>
                   <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
