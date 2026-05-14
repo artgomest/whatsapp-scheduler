@@ -1,6 +1,5 @@
 const { db } = require('./firebase');
-const { proto } = require('@whiskeysockets/baileys');
-const { BufferJSON, initAuthCreds } = require('@whiskeysockets/baileys/lib/Utils/auth-utils');
+const { proto, BufferJSON, initAuthCreds } = require('@whiskeysockets/baileys');
 
 const COLLECTION = 'whatsapp_auth';
 
