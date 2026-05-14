@@ -20,6 +20,7 @@ import {
 const API_BASE = '';
 
 function App() {
+  const [error, setError] = useState(null);
   const [status, setStatus] = useState({ status: 'disconnected', qr: null });
   const [groups, setGroups] = useState([]);
   const [schedules, setSchedules] = useState([]);
@@ -31,6 +32,17 @@ function App() {
   });
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  // Capturar erros globais
+  if (error) {
+    return (
+      <div style={{ padding: '2rem', color: '#ef4444', background: '#111', height: '100vh' }}>
+        <h2>Ops! Ocorreu um erro no site:</h2>
+        <pre style={{ background: '#222', padding: '1rem', borderRadius: '8px', marginTop: '1rem' }}>{error}</pre>
+        <button onClick={() => window.location.reload()} className="btn">Tentar Novamente</button>
+      </div>
+    );
+  }
 
   useEffect(() => {
     fetchStatus();
