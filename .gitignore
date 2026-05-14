@@ -1,9 +1,8 @@
-node_modules/
-.env
-auth_info/
-uploads/
-*.db
-dist/
+node_modules
 .DS_Store
-frontend/node_modules/
-frontend/dist/
+dist
+.env
+auth_info
+database.sqlite
+firebase-service-account.json
+uploads

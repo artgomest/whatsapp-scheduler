@@ -1,64 +1,58 @@
-const { 
-    makeWASocket, 
-    useMultiFileAuthState, 
-    DisconnectReason,
-    fetchLatestBaileysVersion
-} = require('@whiskeysockets/baileys');
-const pino = require('pino');
-const { Boom } = require('@hapi/boom');
-const path = require('path');
-const fs = require('fs');
+const { default: makeWASocket, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { useFirebaseAuthState } = require('./firebaseAuth');
+const P = require('pino');
 
 let sock = null;
-let qrCode = null;
-let connectionStatus = 'disconnected';
+let status = 'disconnected';
+let qr = null;
 
-async function connectToWhatsApp(onQR) {
-    const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'auth_info'));
-    const { version } = await fetchLatestBaileysVersion();
+const getStatus = () => ({ status, qr });
+
+async function connectToWhatsApp() {
+    const { version, isLatest } = await fetchLatestBaileysVersion();
+    console.log(`Usando Baileys v${version.join('.')}, isLatest: ${isLatest}`);
+
+    // Usando nosso novo sistema de autenticação via Firebase
+    const { state, saveCreds } = await useFirebaseAuthState('main_session');
 
     sock = makeWASocket({
         version,
+        logger: P({ level: 'silent' }),
+        printQRInTerminal: false,
         auth: state,
-        printQRInTerminal: true,
-        logger: pino({ level: 'silent' }),
-    });
-
-    sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect, qr } = update;
-        
-        if (qr) {
-            qrCode = qr;
-            if (onQR) onQR(qr);
-        }
-
-        if (connection === 'close') {
-            const shouldReconnect = (lastDisconnect.error instanceof Boom) ? 
-                lastDisconnect.error.output.statusCode !== DisconnectReason.loggedOut : true;
-            
-            connectionStatus = 'disconnected';
-            console.log('connection closed due to ', lastDisconnect.error, ', reconnecting ', shouldReconnect);
-            
-            if (shouldReconnect) {
-                connectToWhatsApp(onQR);
-            }
-        } else if (connection === 'open') {
-            connectionStatus = 'connected';
-            qrCode = null;
-            console.log('opened connection');
-        }
+        browser: ["IBF Scheduler", "Chrome", "1.0.0"]
     });
 
     sock.ev.on('creds.update', saveCreds);
 
+    sock.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect, qr: newQr } = update;
+        
+        if (newQr) {
+            qr = newQr;
+            status = 'disconnected';
+        }
+
+        if (connection === 'close') {
+            const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
+            status = 'disconnected';
+            qr = null;
+            if (shouldReconnect) {
+                console.log('Conexão fechada, tentando reconectar...');
+                connectToWhatsApp();
+            }
+        } else if (connection === 'open') {
+            console.log('✅ WhatsApp Conectado com Sucesso via Firebase!');
+            status = 'connected';
+            qr = null;
+        }
+    });
+
     return sock;
 }
 
-const getSock = () => sock;
-const getStatus = () => ({ status: connectionStatus, qr: qrCode });
-
 async function getGroups() {
-    if (!sock) return [];
+    if (!sock || status !== 'connected') return [];
     try {
         const groups = await sock.groupFetchAllParticipating();
         return Object.values(groups).map(g => ({
@@ -66,24 +60,20 @@ async function getGroups() {
             name: g.subject
         }));
     } catch (e) {
-        console.error('Error fetching groups:', e);
+        console.error('Erro ao buscar grupos:', e);
         return [];
     }
 }
 
-async function sendMessage(jid, text, mediaPath = null, mediaType = 'text') {
-    if (!sock) throw new Error('WhatsApp not connected');
-
-    if (mediaPath && fs.existsSync(mediaPath)) {
-        const content = fs.readFileSync(mediaPath);
-        if (mediaType === 'image') {
-            await sock.sendMessage(jid, { image: content, caption: text });
-        } else if (mediaType === 'video') {
-            await sock.sendMessage(jid, { video: content, caption: text });
-        }
+async function sendMessage(jid, text, mediaPath, mediaType) {
+    if (!sock || status !== 'connected') throw new Error('WhatsApp não conectado');
+    
+    if (mediaPath) {
+        const options = mediaType === 'video' ? { video: { url: mediaPath }, caption: text } : { image: { url: mediaPath }, caption: text };
+        return await sock.sendMessage(jid, options);
     } else {
-        await sock.sendMessage(jid, { text });
+        return await sock.sendMessage(jid, { text });
     }
 }
 
-module.exports = { connectToWhatsApp, getSock, getStatus, getGroups, sendMessage };
+module.exports = { connectToWhatsApp, getStatus, getGroups, sendMessage };
