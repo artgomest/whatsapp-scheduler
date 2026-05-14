@@ -14,9 +14,13 @@ app.use(cors());
 app.use(express.json());
 
 // Servir arquivos estáticos do Frontend
-const distPath = path.join(__dirname, 'frontend', 'dist');
+const distPath = path.resolve(__dirname, 'frontend', 'dist');
 if (fs.existsSync(distPath)) {
     console.log('✅ Pasta dist encontrada em:', distPath);
+    console.log('📂 Arquivos no dist:', fs.readdirSync(distPath));
+    if (fs.existsSync(path.join(distPath, 'assets'))) {
+        console.log('📂 Arquivos no dist/assets:', fs.readdirSync(path.join(distPath, 'assets')));
+    }
     app.use(express.static(distPath));
 } else {
     console.warn('⚠️ ATENÇÃO: Pasta dist NÃO encontrada em:', distPath);
@@ -87,7 +91,11 @@ app.delete('/api/schedule/:id', async (req, res) => {
 });
 
 // Rota para qualquer outra coisa devolver o index.html (SPA support)
+// Mas APENAS se não for um pedido de arquivo (que tenha ponto no nome como .js, .css)
 app.get('*', (req, res) => {
+    if (req.path.includes('.')) {
+        return res.status(404).send('Arquivo não encontrado');
+    }
     res.sendFile(path.join(distPath, 'index.html'));
 });
 
