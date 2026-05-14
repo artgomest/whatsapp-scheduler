@@ -1,4 +1,4 @@
-const { db } = require('./firebase');
+const firebase = require('./firebase');
 const { proto, initAuthCreds } = require('@whiskeysockets/baileys');
 
 const COLLECTION = 'whatsapp_auth';
@@ -28,6 +28,7 @@ const cleanForFirestore = (obj) => {
 const useFirebaseAuthState = async (sessionId) => {
     const writeData = async (data, id) => {
         try {
+            const db = firebase.db;
             if (!db) return;
             const safeId = id.replace(/\//g, '_');
             const cleanData = cleanForFirestore(data);
@@ -39,6 +40,7 @@ const useFirebaseAuthState = async (sessionId) => {
 
     const readData = async (id) => {
         try {
+            const db = firebase.db;
             if (!db) return null;
             const safeId = id.replace(/\//g, '_');
             const doc = await db.collection(COLLECTION).doc(`${sessionId}_${safeId}`).get();
@@ -53,6 +55,7 @@ const useFirebaseAuthState = async (sessionId) => {
 
     const removeData = async (id) => {
         try {
+            const db = firebase.db;
             if (!db) return;
             const safeId = id.replace(/\//g, '_');
             await db.collection(COLLECTION).doc(`${sessionId}_${safeId}`).delete();
