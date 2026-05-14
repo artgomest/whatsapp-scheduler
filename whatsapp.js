@@ -9,6 +9,15 @@ let qr = null;
 const getStatus = () => ({ status, qr });
 
 async function connectToWhatsApp() {
+    // Evita múltiplas conexões simultâneas
+    if (sock) {
+        console.log('[WA] Fechando conexão anterior...');
+        try { sock.ev.removeAllListeners(); } catch(e) {}
+        try { sock.logout(); } catch(e) {}
+        try { sock.end(); } catch(e) {}
+        sock = null;
+    }
+
     const { version, isLatest } = await fetchLatestBaileysVersion();
     console.log(`Usando Baileys v${version.join('.')}, isLatest: ${isLatest}`);
 

@@ -33,13 +33,20 @@ async function run(query, params = []) {
     
     if (q.includes('UPDATE SCHEDULES SET STATUS')) {
         let status, id, error_message = null;
-        if (params.length === 3) {
-            [status, error_message, id] = params;
+        
+        if (q.includes('ERROR_MESSAGE')) {
+            // Caso de falha: UPDATE ... SET status = 'failed', error_message = ? WHERE id = ?
+            status = 'failed';
+            [error_message, id] = params;
         } else {
-            [status, id] = params;
+            // Caso de sucesso: UPDATE ... SET status = 'sent' WHERE id = ?
+            status = q.includes("'SENT'") ? 'sent' : 'pending';
+            [id] = params;
         }
+
         const updateData = { status };
         if (error_message) updateData.error_message = error_message;
+        
         await db.collection('schedules').doc(id).update(updateData);
         return { changes: 1 };
     }

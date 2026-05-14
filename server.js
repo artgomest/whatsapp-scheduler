@@ -100,27 +100,35 @@ app.get('/api/groups', async (req, res) => {
 
 // API: Agendar Mensagem
 app.post('/api/schedule', upload.any(), async (req, res) => {
-    const { group_jid, message, scheduled_time, media_type, media_url, file_url } = req.body;
+    // Pega os dados tentando vários nomes possíveis (Instagram vs WhatsApp)
+    const group_jid = req.body.group_jid || req.body.waGroupJid;
+    const message = req.body.message || req.body.waCaption || req.body.caption;
+    const scheduled_time = req.body.scheduled_time || (req.body.date && req.body.time ? `${req.body.date}T${req.body.time}` : null);
+    const media_type = req.body.media_type || req.body.file_type || 'image';
+    const media_url = req.body.media_url || req.body.file_url || null;
+
+    console.log(`[DEBUG API] Recebido: Group=${group_jid}, Time=${scheduled_time}, Msg=${message?.substring(0, 20)}...`);
     
-    let final_url = media_url || file_url || null; // Prioriza o link se já existir
-    
+    let final_url = media_url;
     try {
-        // Se não veio link, mas veio arquivo, faz o upload pro Storage
         if (!final_url && req.files && req.files.length > 0) {
-            console.log(`[API] Fazendo upload do arquivo para o Firebase Storage...`);
+            console.log(`[API] Fazendo upload do arquivo vindo do Insta...`);
             final_url = await uploadToFirebase(req.files[0]);
-            console.log(`✅ [API] Upload concluído: ${final_url}`);
         }
 
-        console.log(`[API] Recebido agendamento para: ${group_jid}, Mídia: ${media_type || 'link'}`);
+        if (!group_jid || !scheduled_time) {
+            throw new Error('Faltam informações obrigatórias: group_jid ou scheduled_time');
+        }
 
         await db.run(
             "INSERT INTO schedules (group_jid, message, file_path, file_type, scheduled_time) VALUES (?, ?, ?, ?, ?)",
             [group_jid, message, final_url, media_type, scheduled_time]
         );
+        
+        console.log(`✅ [API] Agendamento concluído com sucesso!`);
         res.json({ success: true, url: final_url });
     } catch (error) {
-        console.error('❌ Erro no agendamento:', error.message);
+        console.error('❌ [API] ERRO NO AGENDAMENTO:', error.message);
         res.status(500).json({ error: 'Erro ao processar agendamento', details: error.message });
     }
 });
@@ -168,11 +176,13 @@ async function startApp() {
     cron.schedule('* * * * *', async () => {
         console.log('Checking for scheduled messages...');
         
+        // Ajuste para Fuso Horário de Brasília (GMT-3)
         const now = new Date();
-        const localISO = new Date(now.getTime() - (now.getTimezoneOffset() * 60000))
-                            .toISOString()
-                            .slice(0, 16); 
+        const brasilTime = new Date(now.getTime() - (3 * 60 * 60 * 1000)); 
+        const localISO = brasilTime.toISOString().slice(0, 16); 
 
+        console.log(`[Scheduler] Horário Brasília: ${localISO}`);
+        
         const pending = await db.all(
             "SELECT * FROM schedules WHERE status = 'pending' AND scheduled_time <= ?",
             [localISO]
