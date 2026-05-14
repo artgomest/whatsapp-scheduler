@@ -17,8 +17,8 @@ async function connectToWhatsApp() {
 
     sock = makeWASocket({
         version,
-        logger: P({ level: 'silent' }),
-        printQRInTerminal: false,
+        logger: P({ level: 'info' }), // Ativando logs informativos
+        printQRInTerminal: true, // Mostra o QR no terminal do Render também como backup
         auth: state,
         browser: ["IBF Scheduler", "Chrome", "1.0.0"]
     });

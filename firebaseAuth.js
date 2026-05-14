@@ -1,37 +1,47 @@
 const { db } = require('./firebase');
 const { proto } = require('@whiskeysockets/baileys');
-const { Curve, signedKeyValue } = require('@whiskeysockets/baileys/lib/Utils/crypto');
 const { BufferJSON, initAuthCreds } = require('@whiskeysockets/baileys/lib/Utils/auth-utils');
 
 const COLLECTION = 'whatsapp_auth';
 
+// Função para limpar objetos para o Firestore (remove undefined e converte buffers)
+const cleanForFirestore = (obj) => {
+    return JSON.parse(JSON.stringify(obj, BufferJSON.replacer));
+};
+
 const useFirebaseAuthState = async (sessionId) => {
     const writeData = async (data, id) => {
         try {
-            const cleanData = JSON.parse(JSON.stringify(data, BufferJSON.replacer));
-            await db.collection(COLLECTION).doc(`${sessionId}_${id}`).set(cleanData);
+            if (!db) return;
+            const safeId = id.replace(/\//g, '_'); // Remove barras
+            const cleanData = cleanForFirestore(data);
+            await db.collection(COLLECTION).doc(`${sessionId}_${safeId}`).set(cleanData);
         } catch (e) {
-            console.error('Erro ao salvar no Firebase:', e);
+            console.error(`❌ Erro ao salvar ${id} no Firebase:`, e.message);
         }
     };
 
     const readData = async (id) => {
         try {
-            const doc = await db.collection(COLLECTION).doc(`${sessionId}_${id}`).get();
+            if (!db) return null;
+            const safeId = id.replace(/\//g, '_'); // Remove barras
+            const doc = await db.collection(COLLECTION).doc(`${sessionId}_${safeId}`).get();
             if (doc.exists) {
                 return JSON.parse(JSON.stringify(doc.data()), BufferJSON.reviver);
             }
         } catch (e) {
-            console.error('Erro ao ler do Firebase:', e);
+            console.error(`❌ Erro ao ler ${id} do Firebase:`, e.message);
         }
         return null;
     };
 
     const removeData = async (id) => {
         try {
-            await db.collection(COLLECTION).doc(`${sessionId}_${id}`).delete();
+            if (!db) return;
+            const safeId = id.replace(/\//g, '_'); // Remove barras
+            await db.collection(COLLECTION).doc(`${sessionId}_${safeId}`).delete();
         } catch (e) {
-            console.error('Erro ao remover do Firebase:', e);
+            console.error(`❌ Erro ao remover ${id} do Firebase:`, e.message);
         }
     };
 
