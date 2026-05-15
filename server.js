@@ -5,7 +5,6 @@ const path = require('path');
 const fs = require('fs');
 const cron = require('node-cron');
 const { connectToWhatsApp, getGroups, sendMessage, getStatus } = require('./whatsapp');
-const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -112,20 +111,30 @@ app.post('/api/schedule', upload.any(), async (req, res) => {
     let final_url = media_url;
     try {
         if (!final_url && req.files && req.files.length > 0) {
-            console.log(`[API] Fazendo upload do arquivo vindo do Insta...`);
-            final_url = await uploadToFirebase(req.files[0]);
+            console.log(`[API] Convertendo arquivo vindo do Insta para base64...`);
+            const file = req.files[0];
+            const base64Data = file.buffer.toString('base64');
+            final_url = `data:${file.mimetype};base64,${base64Data}`;
         }
 
         if (!group_jid || !scheduled_time) {
             throw new Error('Faltam informações obrigatórias: group_jid ou scheduled_time');
         }
 
-        await db.run(
-            "INSERT INTO schedules (group_jid, message, file_path, file_type, scheduled_time) VALUES (?, ?, ?, ?, ?)",
-            [group_jid, message, final_url, media_type, scheduled_time]
-        );
+        const firestoreDb = firebase.db;
+        if (!firestoreDb) throw new Error('Firebase Firestore não está disponível');
         
-        console.log(`✅ [API] Agendamento concluído com sucesso!`);
+        await firestoreDb.collection('schedules').add({
+            group_jid,
+            message,
+            file_path: final_url,
+            file_type: media_type,
+            scheduled_time,
+            status: 'pending',
+            created_at: new Date().toISOString()
+        });
+        
+        console.log(`✅ [API] Agendamento salvo no Firebase com sucesso!`);
         res.json({ success: true, url: final_url });
     } catch (error) {
         console.error('❌ [API] ERRO NO AGENDAMENTO:', error.message);
@@ -136,7 +145,11 @@ app.post('/api/schedule', upload.any(), async (req, res) => {
 // API: Listar Agendamentos
 app.get('/api/schedules', async (req, res) => {
     try {
-        const rows = await db.all("SELECT * FROM schedules ORDER BY scheduled_time DESC");
+        const firestoreDb = firebase.db;
+        if (!firestoreDb) throw new Error('Firebase Firestore não está disponível');
+
+        const snapshot = await firestoreDb.collection('schedules').orderBy('scheduled_time', 'desc').get();
+        const rows = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         res.json(rows);
     } catch (error) {
         console.error('Erro ao buscar agendamentos:', error);
@@ -147,7 +160,10 @@ app.get('/api/schedules', async (req, res) => {
 // Rota para deletar agendamento
 app.delete('/api/schedule/:id', async (req, res) => {
     try {
-        await db.run("DELETE FROM schedules WHERE id = ?", [req.params.id]);
+        const firestoreDb = firebase.db;
+        if (!firestoreDb) throw new Error('Firebase Firestore não está disponível');
+
+        await firestoreDb.collection('schedules').doc(req.params.id).delete();
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: 'Erro ao deletar' });
@@ -165,7 +181,6 @@ app.get('*', (req, res) => {
 
 // Inicializar Servidor e WhatsApp
 async function startApp() {
-    await db.init();
     await connectToWhatsApp();
     
     app.listen(PORT, '0.0.0.0', () => {
@@ -176,6 +191,12 @@ async function startApp() {
     cron.schedule('* * * * *', async () => {
         console.log('Checking for scheduled messages...');
         
+        const firestoreDb = firebase.db;
+        if (!firestoreDb) {
+            console.error('[Scheduler] Firebase DB não disponível.');
+            return;
+        }
+
         // Ajuste para Fuso Horário de Brasília (GMT-3)
         const now = new Date();
         const brasilTime = new Date(now.getTime() - (3 * 60 * 60 * 1000)); 
@@ -183,20 +204,26 @@ async function startApp() {
 
         console.log(`[Scheduler] Horário Brasília: ${localISO}`);
         
-        const pending = await db.all(
-            "SELECT * FROM schedules WHERE status = 'pending' AND scheduled_time <= ?",
-            [localISO]
-        );
+        try {
+            const snapshot = await firestoreDb.collection('schedules')
+                .where('status', '==', 'pending')
+                .where('scheduled_time', '<=', localISO)
+                .get();
 
-        for (const task of pending) {
-            try {
-                console.log(`Sending scheduled message to ${task.group_jid}`);
-                await sendMessage(task.group_jid, task.message, task.file_path, task.file_type);
-                await db.run("UPDATE schedules SET status = 'sent' WHERE id = ?", [task.id]);
-            } catch (error) {
-                console.error(`Failed to send to ${task.group_jid}:`, error);
-                await db.run("UPDATE schedules SET status = 'failed', error_message = ? WHERE id = ?", [error.message, task.id]);
+            const pending = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            for (const task of pending) {
+                try {
+                    console.log(`Sending scheduled message to ${task.group_jid}`);
+                    await sendMessage(task.group_jid, task.message, task.file_path, task.file_type);
+                    await firestoreDb.collection('schedules').doc(task.id).update({ status: 'sent' });
+                } catch (error) {
+                    console.error(`Failed to send to ${task.group_jid}:`, error);
+                    await firestoreDb.collection('schedules').doc(task.id).update({ status: 'failed', error_message: error.message });
+                }
             }
+        } catch (error) {
+            console.error('[Scheduler] Erro ao processar fila:', error);
         }
     });
 }
