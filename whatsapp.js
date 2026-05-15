@@ -86,7 +86,9 @@ async function sendMessage(jid, text, mediaPath, mediaType) {
     if (!sock || status !== 'connected') throw new Error('WhatsApp não conectado');
     
     if (mediaPath) {
-        const options = mediaType === 'video' ? { video: { url: mediaPath }, caption: text } : { image: { url: mediaPath }, caption: text };
+        const isBuffer = Buffer.isBuffer(mediaPath);
+        const mediaConfig = isBuffer ? mediaPath : { url: mediaPath };
+        const options = mediaType === 'video' ? { video: mediaConfig, caption: text } : { image: mediaConfig, caption: text };
         return await sock.sendMessage(jid, options);
     } else {
         return await sock.sendMessage(jid, { text });

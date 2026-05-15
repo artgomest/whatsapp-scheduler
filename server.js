@@ -111,10 +111,18 @@ app.post('/api/schedule', upload.any(), async (req, res) => {
     let final_url = media_url;
     try {
         if (!final_url && req.files && req.files.length > 0) {
-            console.log(`[API] Convertendo arquivo vindo do Insta para base64...`);
+            console.log(`[API] Salvando arquivo localmente para o agendamento...`);
             const file = req.files[0];
-            const base64Data = file.buffer.toString('base64');
-            final_url = `data:${file.mimetype};base64,${base64Data}`;
+            const fs = require('fs');
+            const path = require('path');
+            const uploadsDir = path.join(__dirname, 'uploads');
+            if (!fs.existsSync(uploadsDir)) {
+                fs.mkdirSync(uploadsDir);
+            }
+            const fileName = `${Date.now()}_${file.originalname}`;
+            const localPath = path.join(uploadsDir, fileName);
+            fs.writeFileSync(localPath, file.buffer);
+            final_url = `local:${localPath}`;
         }
 
         if (!group_jid || !scheduled_time) {
@@ -215,7 +223,29 @@ async function startApp() {
             for (const task of pending) {
                 try {
                     console.log(`Sending scheduled message to ${task.group_jid}`);
-                    await sendMessage(task.group_jid, task.message, task.file_path, task.file_type);
+                    
+                    let mediaContent = null;
+                    if (task.file_path) {
+                        if (task.file_path.startsWith('data:')) {
+                            console.log('Sending Base64 File...');
+                            const parts = task.file_path.split(',');
+                            const b64Data = parts[1];
+                            mediaContent = Buffer.from(b64Data, 'base64');
+                        } else if (task.file_path.startsWith('local:')) {
+                            const fs = require('fs');
+                            const localPath = task.file_path.replace('local:', '');
+                            if (fs.existsSync(localPath)) {
+                                mediaContent = fs.readFileSync(localPath);
+                            }
+                        } else {
+                            console.log('Downloading media from URL...');
+                            const axios = require('axios');
+                            const response = await axios.get(task.file_path, { responseType: 'arraybuffer' });
+                            mediaContent = Buffer.from(response.data, 'binary');
+                        }
+                    }
+
+                    await sendMessage(task.group_jid, task.message, mediaContent || task.file_path, task.file_type);
                     await firestoreDb.collection('schedules').doc(task.id).update({ status: 'sent' });
                 } catch (error) {
                     console.error(`Failed to send to ${task.group_jid}:`, error);
